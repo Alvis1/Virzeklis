@@ -1,14 +1,38 @@
 <html>
   <head>
-    <script src="./aframe170.min.js"></script>
+    <script src="./aframe171.min.js"></script>
+    <script src="./Components/terrain-component.js"></script>
+    <script src="./Components/fixed-camera.js"></script>
+    <script src="./Components/random-compositions.js"></script>
   </head>
   <body>
-    <a-scene>
-      <a-box position="-1 0.5 -3" rotation="0 45 0" color="#4CC3D9"></a-box>
-      <a-sphere position="0 1.25 -5" radius="1.25" color="#EF2D5E"></a-sphere>
-      <a-cylinder position="1 0.75 -3" radius="0.5" height="1.5" color="#FFC65D"></a-cylinder>
-      <a-plane position="0 0 -4" rotation="-90 0 0" width="4" height="4" color="#7BC8A4"></a-plane>
-      <a-sky color="#ECECEC"></a-sky>
+    <a-scene inspector="url: ./aframeeditor.min.js">
+      <!-- Fixed camera with mouse control and focused FOV -->
+      <a-camera 
+        fixed-camera="height: 10; fov: 30; maxRotation: 15; terrainSelector: [terrain]"
+        position="0 10 0">
+      </a-camera>
+
+      <a-light type="point" intensity="50.0" position="0 10 0"></a-light>
+
+      <!-- Tessellated terrain with displacement shader (optimized for Pi) -->
+      <a-entity 
+        terrain="width: 2000; height: 2000; widthSegments: 512; heightSegments: 512; displacementScale: 10; noiseScale: 0.05"
+        position="0 0 0">
+      </a-entity>
+      
+      <!-- Dynamic compositions with conservative culling -->
+      <a-entity 
+        culling-compositions="count: 12; spread: 80; minRadius: 15; maxRadius: 60; minHeight: 3; maxHeight: 12; cullingDistance: 50; spawnDistance: 30; maxCompositions: 18; checkInterval: 2000">
+      </a-entity>
+      
+    
+      <!-- Lighting -->
+      <a-light type="ambient" color="#404040" intensity="1.0"></a-light>
+
+      
+      <!-- Sky -->
+      <a-sky color="white"></a-sky>
     </a-scene>
   </body>
 </html>
