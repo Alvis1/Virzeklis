@@ -23,7 +23,7 @@ AFRAME.registerComponent('fixed-camera', {
     // Set camera position and FOV
     this.el.setAttribute('position', `0 ${this.data.height} 0`);
     this.el.setAttribute('camera', 'fov', this.data.fov);
-    this.el.setAttribute('camera', 'far', 2000);
+    this.el.setAttribute('camera', 'far', 1000);
     
     // Find terrain entity
     this.terrainEl = document.querySelector(this.data.terrainSelector);
@@ -32,7 +32,7 @@ AFRAME.registerComponent('fixed-camera', {
     this.onWheel = this.onWheel.bind(this);
     
     // Add event listeners (removed mouse events)
-    document.addEventListener('wheel', this.onWheel);
+    document.addEventListener('wheel', this.onWheel, { passive: false });
     
     // Disable all default controls
     this.el.removeAttribute('wasd-controls');

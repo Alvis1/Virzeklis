@@ -49,16 +49,11 @@ AFRAME.registerComponent('random-compositions', {
     this._tmpV3 = new THREE.Vector3();
     this._tmpQuat = new THREE.Quaternion();
     
-    // Safety check variables
-    this.lastSafetyCheck = 0;
-    this.safetyCheckInterval = 5000; // Check every 5 seconds for stuck compositions
-    
     // Wait for scene to be ready
     this.el.sceneEl.addEventListener('loaded', () => {
       this.frustumSystem = this.el.sceneEl.systems['light-frustum'];
       this.createCompositions();
       this.registerWithFrustumSystem();
-      this.startSafetySystem();
     });
   },
 
@@ -313,62 +308,6 @@ AFRAME.registerComponent('random-compositions', {
     console.log('Compositions count:', this.compositions.length);
   },
 
-  startSafetySystem: function() {
-    // Add a safety system that periodically checks for compositions too close to camera
-    this.el.sceneEl.addEventListener('tick', (event) => {
-      this.performSafetyCheck(event.detail.time);
-    });
-    console.log('Safety system started - will check every', this.safetyCheckInterval, 'ms');
-  },
-
-  performSafetyCheck: function(time) {
-    if (!this.camera || this.compositions.length === 0) return;
-    
-    // Only check every safetyCheckInterval milliseconds
-    if (time - this.lastSafetyCheck < this.safetyCheckInterval) return;
-    this.lastSafetyCheck = time;
-    
-    const cameraPos = this.camera.getAttribute('position');
-    if (!cameraPos) return;
-    
-    console.log('Performing safety check...');
-    
-    const grayColors = ['#A0A0A0', '#B8B8B8', '#909090', '#C8C8C8', '#888888', '#D0D0D0'];
-    let repositionedCount = 0;
-    
-    // Check each composition for distance from camera
-    this.compositions.forEach((composition, index) => {
-      if (!composition.parentNode) return; // Skip if removed from scene
-      
-      const pos = composition.getAttribute('position');
-      if (!pos) return;
-      
-      // Calculate distance from camera
-      const distance = Math.sqrt(
-        Math.pow(pos.x - cameraPos.x, 2) + 
-        Math.pow(pos.z - cameraPos.z, 2)
-      );
-      
-      // If composition is too close, force reposition it
-      if (distance < this.data.minDist) {
-        console.log(`Safety check: Composition ${index} too close (${distance.toFixed(1)} < ${this.data.minDist}), repositioning`);
-        this.forceRepositionComposition(composition, grayColors);
-        repositionedCount++;
-      }
-    });
-    
-    if (repositionedCount > 0) {
-      console.log(`Safety check complete: repositioned ${repositionedCount} compositions`);
-    }
-  },
-
-  forceRepositionComposition: function(entity, colors) {
-    // Force reposition a composition that's too close to camera
-    this.randomizeCompositionPosition(entity);
-    this.regenerateComposition(entity, colors);
-    console.log('Forced repositioning completed for composition');
-  },
-
   remove: function() {
     // Clean up when component is removed
     if (this.frustumSystem) {
@@ -403,8 +342,6 @@ AFRAME.registerComponent('offscreen-respawn', {
     this._boundsMesh = null;
     this._baseCenter = null;
     this._baseRadius = 0;
-    this._lastDistanceCheck = 0;
-    this._distanceCheckInterval = 2000; // Check distance every 2 seconds
 
     // Reference the light-frustum system explicitly
     this.lf = this.el.sceneEl.systems['light-frustum'];
@@ -416,11 +353,6 @@ AFRAME.registerComponent('offscreen-respawn', {
     this.el.addEventListener('model-loaded', ready);
 
     if (this.lf) this.lf.register(this);
-    
-    // Start distance-based checking as backup
-    this.el.sceneEl.addEventListener('tick', (event) => {
-      this._checkDistanceFromCamera(event.detail.time);
-    });
   },
 
   remove(){ if (this.lf) this.lf.unregister(this); },
@@ -483,36 +415,6 @@ AFRAME.registerComponent('offscreen-respawn', {
     }
   },
 
-  _checkDistanceFromCamera(time) {
-    // Backup distance-based check in case frustum system fails
-    if (!this.lf || time - this._lastDistanceCheck < this._distanceCheckInterval) return;
-    this._lastDistanceCheck = time;
-    
-    const scene = this.el.sceneEl;
-    const cam = scene && scene.camera;
-    if (!cam) return;
-    
-    // Get camera and object positions
-    const camPos = this._tmpV2;
-    cam.getWorldPosition(camPos);
-    
-    const objPos = this._tmpV1;
-    this.el.object3D.getWorldPosition(objPos);
-    
-    // Calculate distance (ignore Y difference for ground-level compositions)
-    const distance = Math.sqrt(
-      Math.pow(objPos.x - camPos.x, 2) + 
-      Math.pow(objPos.z - camPos.z, 2)
-    );
-    
-    // If too close, force respawn
-    if (distance < this.data.minDist) {
-      console.log(`Distance check: Object too close (${distance.toFixed(1)} < ${this.data.minDist}), respawning`);
-      this._inView = false; // Force to not in view
-      this.__respawnOffscreen();
-    }
-  },
-
   __respawnOffscreen(){
     const scene = this.el.sceneEl;
     const cam = scene && scene.camera;
@@ -528,12 +430,11 @@ AFRAME.registerComponent('offscreen-respawn', {
     const marginRad  = THREE.MathUtils.degToRad(this.data.marginDeg);
     const cosLimit   = Math.cos(halfFovRad + marginRad);
 
-    // Ensure minimum distance is always at least 20
-    const minD = Math.max(this.data.minDist, 20, cam.near + 0.5);
+    const minD = Math.max(this.data.minDist, cam.near + 0.5);
     const maxD = Math.min(this.data.maxDist, cam.far * 0.9);
 
     let placed = false;
-    for (let i = 0; i < 20 && !placed; i++) { // Increased attempts from 12 to 20
+    for (let i = 0; i < 12 && !placed; i++) {
       // random direction
       const dir = this._randUnit(this._tmpV3);
       if (camFwd.dot(dir) > cosLimit) { i--; continue; } // still in FOV, retry
@@ -542,17 +443,6 @@ AFRAME.registerComponent('offscreen-respawn', {
       const pos = dir.multiplyScalar(dist).add(camPos);
 
       if (this.data.lockY) pos.y = THREE.MathUtils.clamp(pos.y, this.data.yMin, this.data.yMax);
-
-      // Verify the distance is safe before placing
-      const finalDistance = Math.sqrt(
-        Math.pow(pos.x - camPos.x, 2) + 
-        Math.pow(pos.z - camPos.z, 2)
-      );
-      
-      if (finalDistance < 20) { // Force minimum 20 unit distance
-        i--; // Don't count this attempt
-        continue;
-      }
 
       // apply position + rotation
       this.el.object3D.position.copy(pos);
@@ -573,28 +463,10 @@ AFRAME.registerComponent('offscreen-respawn', {
     }
 
     if (!placed) {
-      // Enhanced fallback: place at a safe distance in multiple possible directions
-      const safeDistance = Math.max(30, maxD); // Ensure at least 30 units away
-      const fallbackDirections = [
-        {x: 1, z: 0},   // Right
-        {x: -1, z: 0},  // Left  
-        {x: 0, z: 1},   // Forward
-        {x: 0, z: -1},  // Back
-        {x: 1, z: 1},   // Diagonal
-        {x: -1, z: -1}, // Diagonal
-        {x: 1, z: -1},  // Diagonal
-        {x: -1, z: 1}   // Diagonal
-      ];
-      
-      const randomDir = fallbackDirections[Math.floor(Math.random() * fallbackDirections.length)];
-      const pos = this._tmpV3.set(
-        camPos.x + randomDir.x * safeDistance,
-        this.data.lockY ? THREE.MathUtils.clamp(camPos.y, this.data.yMin, this.data.yMax) : camPos.y,
-        camPos.z + randomDir.z * safeDistance
-      );
-      
+      // guaranteed off-screen: directly behind camera at maxD
+      const pos = this._tmpV3.copy(camPos).addScaledVector(camFwd, -maxD);
+      if (this.data.lockY) pos.y = THREE.MathUtils.clamp(pos.y, this.data.yMin, this.data.yMax);
       this.el.object3D.position.copy(pos);
-      console.log(`Fallback positioning: placed at distance ${safeDistance} from camera`);
     }
 
     this.el.emit('respawned-offscreen');

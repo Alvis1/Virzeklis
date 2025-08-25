@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>A-Frame Offscreen Respawn (Pi-friendly)</title>
+  <!-- Stable A-Frame build -->
+  <script src="https://aframe.io/releases/1.4.1/aframe.min.js"></script>
+  <style>
+    body { margin:0; background:#101216; }
+    .hud {
+      position: fixed; left: 12px; top: 12px; color: #cfd3dc;
+      font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      opacity: 0.9; padding: 8px 10px; background: rgba(0,0,0,.35); border-radius: 8px;
+    }
+    .hud kbd{background:#222;padding:2px 6px;border-radius:4px;}
+  </style>
+</head>
+<body>
+  <div class="hud">
+    Move with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>, look with mouse. Objects respawn to a random off-screen spot when they leave view.
+  </div>
+
+  <a-scene renderer="antialias:false; physicallyCorrectLights:false; precision:mediump; sortObjects:false">
+    <!-- Camera rig -->
+    <a-entity id="rig" position="0 1.6 6">
+      <a-entity camera="fov:65; near:0.1; far:40" look-controls wasd-controls></a-entity>
+    </a-entity>
+
+    <!-- Minimal scene (flat/unlit for Raspberry Pi 4 performance) -->
+    <a-entity geometry="primitive: circle; radius: 30" rotation="-90 0 0"
+              material="shader: flat; color: #2a2f39"></a-entity>
+    <a-entity position="0 2 -2" text="value: Offscreen Respawn Demo; color: #e8edf7; align: center; width: 4"></a-entity>
+
+    <!-- Targets (set radius if you know approximate size to avoid geometry scans) -->
+    <a-box color="#f66" depth="0.6" height="0.6" width="0.6" position="-1 1.2 -3"
+           offscreen-respawn="radius:0.45; minDist:6; maxDist:12; marginDeg:12; lockY:true; yMin:0.8; yMax:1.8; randomYawOnly:true">
+    </a-box>
+
+    <a-sphere color="#6cf" radius="0.45" position="1 1.2 -5"
+              offscreen-respawn="radius:0.5; minDist:8; maxDist:16; marginDeg:15; lockY:true; yMin:0.8; yMax:1.8; randomYawOnly:true">
+    </a-sphere>
+
+    <a-sky color="#1a1d24"></a-sky>
+
+    <script>
+      // =========================
+      // Light, throttled frustum system (Pi-friendly)
+      // =========================
+      AFRAME.registerSystem('light-frustum', {
+        schema: { throttleMs: { default: 60 } }, // ~16 fps checks; render can be higher
+        init() {
+          this.targets = new Set();
+          this.frustum = new THREE.Frustum();
+          this._projView = new THREE.Matrix4();
+          this._last = 0;
+        },
+        register(comp){ this.targets.add(comp); },
+        unregister(comp){ this.targets.delete(comp); },
+        tick(t) {
+          const cam = this.el.camera;
+          if (!cam) return;
+          if (t - this._last < this.data.throttleMs) return;
+          this._last = t;
+
+          // Build frustum from camera (world → clip)
+          cam.updateMatrixWorld(true);
+          this._projView.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+          this.frustum.setFromProjectionMatrix(this._projView);
+
+          // Ask components to run their cheap sphere tests
+          this.targets.forEach(c => c.__checkVisible(this.frustum));
+        }
+      });
+
+      // ==========================================
+      // Component: respawn entity to a random off-screen place on exit
+      // ==========================================
+      AFRAME.registerComponent('offscreen-respawn', {
+        schema: {
+          radius: {type: 'number', default: 0},   // set >0 to skip geometry bounds
+          minDist:{type: 'number', default: 6},
+          maxDist:{type: 'number', default: 14},
+          marginDeg:{type: 'number', default: 10},
+          lockY: {default: false},
+          yMin:  {type: 'number', default: 0.4},
+          yMax:  {type: 'number', default: 1.8},
+          randomYawOnly: {default: true}
+        },
+
+        init(){
+          this._inView = false;
+          this._sphere = new THREE.Sphere();
+          this._tmpV1 = new THREE.Vector3();
+          this._tmpV2 = new THREE.Vector3();
+          this._tmpV3 = new THREE.Vector3();
+          this._tmpQuat = new THREE.Quaternion();
+          this._tmpScale = new THREE.Vector3();
+          this._boundsMesh = null;
+          this._baseCenter = null;
+          this._baseRadius = 0;
+
+          // Reference the light-frustum system explicitly
+          this.lf = this.el.sceneEl.systems['light-frustum'];
+
+          // Optional bounds discovery (once)
+          const ready = () => { this._setupBoundsOnce(); };
+          if (this.el.getObject3D('mesh')) ready();
+          this.el.addEventListener('object3dset', e => { if (e.detail.type === 'mesh') ready(); });
+          this.el.addEventListener('model-loaded', ready);
+
+          this.lf.register(this);
+        },
+
+        remove(){ if (this.lf) this.lf.unregister(this); },
+
+        _setupBoundsOnce(){
+          if (this.data.radius > 0) return;
+          let m = null;
+          this.el.object3D.traverse(n => { if (!m && n.isMesh && n.geometry) m = n; });
+          if (!m) return;
+          const g = m.geometry;
+          if (!g.boundingSphere) g.computeBoundingSphere();
+          if (g.boundingSphere) {
+            this._boundsMesh = m;
+            this._baseCenter = g.boundingSphere.center.clone();
+            this._baseRadius = g.boundingSphere.radius;
+          }
+        },
+
+        __getWorldSphere(out){
+          if (this.data.radius > 0) {
+            this.el.object3D.getWorldPosition(this._tmpV1);
+            out.center.copy(this._tmpV1);
+            out.radius = this.data.radius;
+            return out;
+          }
+          if (this._boundsMesh && this._baseCenter) {
+            const m = this._boundsMesh;
+            // world center
+            this._tmpV1.copy(this._baseCenter).applyMatrix4(m.matrixWorld);
+            // world uniform scale
+            m.getWorldScale(this._tmpScale);
+            const s = Math.max(this._tmpScale.x, this._tmpScale.y, this._tmpScale.z);
+            out.center.copy(this._tmpV1);
+            out.radius = this._baseRadius * s;
+            return out;
+          }
+          if (!this._box) this._box = new THREE.Box3();
+          this._box.setFromObject(this.el.object3D);
+          if (this._box.isEmpty()) {
+            this.el.object3D.getWorldPosition(this._tmpV1);
+            out.center.copy(this._tmpV1);
+            out.radius = 0.5;
+          } else {
+            this._box.getBoundingSphere(out);
+          }
+          return out;
+        },
+
+        __checkVisible(frustum){
+          const s = this.__getWorldSphere(this._sphere);
+          const visible = frustum.intersectsSphere(s);
+
+          if (visible && !this._inView) {
+            this._inView = true;
+            this.el.emit('enter-view');
+          } else if (!visible && this._inView) {
+            this._inView = false;
+            this.el.emit('exit-view');
+            this.__respawnOffscreen();
+          }
+        },
+
+        __respawnOffscreen(){
+          const scene = this.el.sceneEl;
+          const cam = scene && scene.camera;
+          if (!cam || !this.lf) return;
+
+          // Camera world-space orientation and position
+          cam.getWorldQuaternion(this._tmpQuat);
+          const camFwd = this._tmpV1.set(0,0,-1).applyQuaternion(this._tmpQuat).normalize();
+          const camPos = this._tmpV2;
+          cam.getWorldPosition(camPos);
+
+          const halfFovRad = THREE.MathUtils.degToRad(cam.fov * 0.5);
+          const marginRad  = THREE.MathUtils.degToRad(this.data.marginDeg);
+          const cosLimit   = Math.cos(halfFovRad + marginRad);
+
+          const minD = Math.max(this.data.minDist, cam.near + 0.5);
+          const maxD = Math.min(this.data.maxDist, cam.far * 0.9);
+
+          let placed = false;
+          for (let i = 0; i < 12 && !placed; i++) {
+            // random direction
+            const dir = this._randUnit(this._tmpV3);
+            if (camFwd.dot(dir) > cosLimit) { i--; continue; } // still in FOV, retry
+
+            const dist = THREE.MathUtils.lerp(minD, maxD, Math.random());
+            const pos = dir.multiplyScalar(dist).add(camPos);
+
+            if (this.data.lockY) pos.y = THREE.MathUtils.clamp(pos.y, this.data.yMin, this.data.yMax);
+
+            // apply position + rotation
+            this.el.object3D.position.copy(pos);
+            if (this.data.randomYawOnly) {
+              const yaw = Math.random() * 360;
+              this.el.object3D.rotation.set(0, THREE.MathUtils.degToRad(yaw), 0);
+            } else {
+              this.el.object3D.rotation.set(
+                THREE.MathUtils.degToRad(Math.random()*360),
+                THREE.MathUtils.degToRad(Math.random()*360),
+                THREE.MathUtils.degToRad(Math.random()*360)
+              );
+            }
+
+            // verify off-screen
+            this.__getWorldSphere(this._sphere);
+            placed = !this.lf.frustum.intersectsSphere(this._sphere);
+          }
+
+          if (!placed) {
+            // guaranteed off-screen: directly behind camera at maxD
+            const pos = this._tmpV3.copy(camPos).addScaledVector(camFwd, -maxD);
+            if (this.data.lockY) pos.y = THREE.MathUtils.clamp(pos.y, this.data.yMin, this.data.yMax);
+            this.el.object3D.position.copy(pos);
+          }
+
+          this.el.emit('respawned-offscreen');
+        },
+
+        _randUnit(out){
+          out.set(Math.random()*2-1, Math.random()*2-1, Math.random()*2-1);
+          if (out.lengthSq() < 1e-6) out.set(1,0,0);
+          return out.normalize();
+        }
+      });
+    </script>
+  </a-scene>
+</body>
+</html>

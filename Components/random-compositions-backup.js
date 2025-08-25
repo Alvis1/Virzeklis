@@ -33,13 +33,15 @@ AFRAME.registerComponent('random-compositions', {
     maxRadius: {type: 'number', default: 50},
     minHeight: {type: 'number', default: 2},
     maxHeight: {type: 'number', default: 8},
-    minDist: {type: 'number', default: 20}, // Minimum respawn distance - not closer than 20 from camera
+    objectCount: {type: 'number', default: 30},
+    minDist: {type: 'number', default: 15}, // Minimum respawn distance
     maxDist: {type: 'number', default: 60}, // Maximum respawn distance
     marginDeg: {type: 'number', default: 15}, // Margin outside FOV for respawn
     cameraSelector: {type: 'string', default: 'a-camera'}
   },
 
   init: function () {
+    this.randomObjects = []; // Keep track of random objects
     this.compositions = []; // Keep track of compositions
     this.camera = null;
     this.frustumSystem = null;
@@ -49,16 +51,12 @@ AFRAME.registerComponent('random-compositions', {
     this._tmpV3 = new THREE.Vector3();
     this._tmpQuat = new THREE.Quaternion();
     
-    // Safety check variables
-    this.lastSafetyCheck = 0;
-    this.safetyCheckInterval = 5000; // Check every 5 seconds for stuck compositions
-    
     // Wait for scene to be ready
     this.el.sceneEl.addEventListener('loaded', () => {
       this.frustumSystem = this.el.sceneEl.systems['light-frustum'];
       this.createCompositions();
+      this.createRandomObjects();
       this.registerWithFrustumSystem();
-      this.startSafetySystem();
     });
   },
 
@@ -102,25 +100,11 @@ AFRAME.registerComponent('random-compositions', {
 
   randomizeCompositionPosition: function(entity) {
     const data = this.data;
-    
-    // Get camera position to ensure minimum distance from camera
-    const camera = document.querySelector(data.cameraSelector);
-    let cameraPos = {x: 0, y: 0, z: 0}; // Default to origin if camera not found
-    if (camera) {
-      const camPosition = camera.getAttribute('position');
-      if (camPosition) {
-        cameraPos = camPosition;
-      }
-    }
-    
     let x, z, distance;
     do {
       x = (Math.random() - 0.5) * data.spread;
       z = (Math.random() - 0.5) * data.spread;
-      // Calculate distance from camera position, not from origin
-      distance = Math.sqrt(
-        Math.pow(x - cameraPos.x, 2) + Math.pow(z - cameraPos.z, 2)
-      );
+      distance = Math.sqrt(x * x + z * z);
     } while (distance < data.minRadius || distance > data.maxRadius);
     
     const y = 0; // Start at ground level
@@ -142,7 +126,7 @@ AFRAME.registerComponent('random-compositions', {
     entity.setAttribute('rotation', rotation);
   },
 
-  createTowerComposition: function(parentEntity, colors) {
+    createTowerComposition: function(parentEntity, colors) {
     // Base of the tower - wide rectangular base with more variation
     const base = document.createElement('a-entity');
     const baseWidth = 2 + Math.random() * 3; // More variation: 2-5
@@ -300,6 +284,126 @@ AFRAME.registerComponent('random-compositions', {
       parentEntity.appendChild(protrusion);
     }
   },
+    parentEntity.appendChild(protrusionPyramid);
+      }
+      
+      parentEntity.appendChild(protrusion);
+    }
+  },
+
+  registerWithFrustumSystem: function() {
+  },
+
+  createRandomObjects: function() {
+    const data = this.data;
+    const objectTypes = ['box', 'cone', 'sphere'];
+    const colors = ['#A0A0A0', '#B8B8B8', '#909090', '#C8C8C8', '#888888', '#D0D0D0'];
+    
+    console.log('Creating', data.objectCount, 'random objects');
+
+    for (let i = 0; i < data.objectCount; i++) {
+      // Create the object entity
+      const object = document.createElement('a-entity');
+      
+      // Set initial random position
+      this.randomizeObjectPosition(object);
+      
+      // Create random geometry and properties
+      this.randomizeObjectProperties(object, objectTypes, colors);
+      
+      // Add offscreen respawn functionality
+      object.setAttribute('offscreen-respawn', {
+        radius: 1.5,
+        minDist: this.data.minDist,
+        maxDist: this.data.maxDist,
+        marginDeg: this.data.marginDeg,
+        lockY: true,
+        yMin: 1,
+        yMax: 8,
+        randomYawOnly: false // Allow full rotation for random objects
+      });
+      
+      // Listen for respawn event to randomize properties again
+      object.addEventListener('respawned-offscreen', () => {
+        this.randomizeObjectProperties(object, objectTypes, colors);
+      });
+      
+      console.log(`Created object at position`, object.getAttribute('position'));
+      
+      // Add the object to the scene and track it
+      this.el.appendChild(object);
+      this.randomObjects.push(object);
+    }
+    
+    console.log(`Finished creating ${data.objectCount} random objects`);
+  },
+
+  randomizeObjectPosition: function(object) {
+    // Generate position within the specified radius range (20-50 units from center)
+    let x, z, distance;
+    do {
+      x = (Math.random() - 0.5) * 100; // Generate in wider range first
+      z = (Math.random() - 0.5) * 100;
+      distance = Math.sqrt(x * x + z * z);
+    } while (distance < 20 || distance > 50); // Keep within 20-50 unit range
+
+    // Random height above ground - make them more visible
+    const y = 1 + Math.random() * 8; // Between 1 and 9 units high
+    
+    object.setAttribute('position', `${x} ${y} ${z}`);
+  },
+
+  randomizeObjectProperties: function(object, objectTypes, colors) {
+    // Random object type
+    const objectType = objectTypes[Math.floor(Math.random() * objectTypes.length)];
+    
+    // Random size (scale factor) - make them larger and more visible
+    const sizeScale = 1 + Math.random() * 3; // Scale between 1 and 4
+    
+    // Random rotation
+    const rotationX = Math.random() * 360;
+    const rotationY = Math.random() * 360;
+    const rotationZ = Math.random() * 360;
+    
+    // Random color
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    
+    // Set geometry based on object type
+    let geometryProps = {};
+    switch(objectType) {
+      case 'box':
+        geometryProps = {
+          primitive: 'box',
+          width: sizeScale,
+          height: sizeScale,
+          depth: sizeScale
+        };
+        break;
+      case 'cone':
+        geometryProps = {
+          primitive: 'cone',
+          radiusBottom: sizeScale * 0.5,
+          radiusTop: 0,
+          height: sizeScale * 1.5
+        };
+        break;
+      case 'sphere':
+        geometryProps = {
+          primitive: 'sphere',
+          radius: sizeScale * 0.5
+        };
+        break;
+    }
+    
+    // Apply properties to the object
+    object.setAttribute('geometry', geometryProps);
+    object.setAttribute('rotation', `${rotationX} ${rotationY} ${rotationZ}`);
+    object.setAttribute('material', {
+      color: color,
+      roughness: 0.7 + Math.random() * 0.3, // Random roughness between 0.7-1.0
+      flatShading: true
+    });
+  },
 
   registerWithFrustumSystem: function() {
     // Find the camera
@@ -310,63 +414,7 @@ AFRAME.registerComponent('random-compositions', {
     }
 
     console.log('Frustum system ready. Camera found:', this.camera);
-    console.log('Compositions count:', this.compositions.length);
-  },
-
-  startSafetySystem: function() {
-    // Add a safety system that periodically checks for compositions too close to camera
-    this.el.sceneEl.addEventListener('tick', (event) => {
-      this.performSafetyCheck(event.detail.time);
-    });
-    console.log('Safety system started - will check every', this.safetyCheckInterval, 'ms');
-  },
-
-  performSafetyCheck: function(time) {
-    if (!this.camera || this.compositions.length === 0) return;
-    
-    // Only check every safetyCheckInterval milliseconds
-    if (time - this.lastSafetyCheck < this.safetyCheckInterval) return;
-    this.lastSafetyCheck = time;
-    
-    const cameraPos = this.camera.getAttribute('position');
-    if (!cameraPos) return;
-    
-    console.log('Performing safety check...');
-    
-    const grayColors = ['#A0A0A0', '#B8B8B8', '#909090', '#C8C8C8', '#888888', '#D0D0D0'];
-    let repositionedCount = 0;
-    
-    // Check each composition for distance from camera
-    this.compositions.forEach((composition, index) => {
-      if (!composition.parentNode) return; // Skip if removed from scene
-      
-      const pos = composition.getAttribute('position');
-      if (!pos) return;
-      
-      // Calculate distance from camera
-      const distance = Math.sqrt(
-        Math.pow(pos.x - cameraPos.x, 2) + 
-        Math.pow(pos.z - cameraPos.z, 2)
-      );
-      
-      // If composition is too close, force reposition it
-      if (distance < this.data.minDist) {
-        console.log(`Safety check: Composition ${index} too close (${distance.toFixed(1)} < ${this.data.minDist}), repositioning`);
-        this.forceRepositionComposition(composition, grayColors);
-        repositionedCount++;
-      }
-    });
-    
-    if (repositionedCount > 0) {
-      console.log(`Safety check complete: repositioned ${repositionedCount} compositions`);
-    }
-  },
-
-  forceRepositionComposition: function(entity, colors) {
-    // Force reposition a composition that's too close to camera
-    this.randomizeCompositionPosition(entity);
-    this.regenerateComposition(entity, colors);
-    console.log('Forced repositioning completed for composition');
+    console.log('Objects count - Random:', this.randomObjects.length, 'Compositions:', this.compositions.length);
   },
 
   remove: function() {
@@ -403,8 +451,6 @@ AFRAME.registerComponent('offscreen-respawn', {
     this._boundsMesh = null;
     this._baseCenter = null;
     this._baseRadius = 0;
-    this._lastDistanceCheck = 0;
-    this._distanceCheckInterval = 2000; // Check distance every 2 seconds
 
     // Reference the light-frustum system explicitly
     this.lf = this.el.sceneEl.systems['light-frustum'];
@@ -416,11 +462,6 @@ AFRAME.registerComponent('offscreen-respawn', {
     this.el.addEventListener('model-loaded', ready);
 
     if (this.lf) this.lf.register(this);
-    
-    // Start distance-based checking as backup
-    this.el.sceneEl.addEventListener('tick', (event) => {
-      this._checkDistanceFromCamera(event.detail.time);
-    });
   },
 
   remove(){ if (this.lf) this.lf.unregister(this); },
@@ -483,36 +524,6 @@ AFRAME.registerComponent('offscreen-respawn', {
     }
   },
 
-  _checkDistanceFromCamera(time) {
-    // Backup distance-based check in case frustum system fails
-    if (!this.lf || time - this._lastDistanceCheck < this._distanceCheckInterval) return;
-    this._lastDistanceCheck = time;
-    
-    const scene = this.el.sceneEl;
-    const cam = scene && scene.camera;
-    if (!cam) return;
-    
-    // Get camera and object positions
-    const camPos = this._tmpV2;
-    cam.getWorldPosition(camPos);
-    
-    const objPos = this._tmpV1;
-    this.el.object3D.getWorldPosition(objPos);
-    
-    // Calculate distance (ignore Y difference for ground-level compositions)
-    const distance = Math.sqrt(
-      Math.pow(objPos.x - camPos.x, 2) + 
-      Math.pow(objPos.z - camPos.z, 2)
-    );
-    
-    // If too close, force respawn
-    if (distance < this.data.minDist) {
-      console.log(`Distance check: Object too close (${distance.toFixed(1)} < ${this.data.minDist}), respawning`);
-      this._inView = false; // Force to not in view
-      this.__respawnOffscreen();
-    }
-  },
-
   __respawnOffscreen(){
     const scene = this.el.sceneEl;
     const cam = scene && scene.camera;
@@ -528,12 +539,11 @@ AFRAME.registerComponent('offscreen-respawn', {
     const marginRad  = THREE.MathUtils.degToRad(this.data.marginDeg);
     const cosLimit   = Math.cos(halfFovRad + marginRad);
 
-    // Ensure minimum distance is always at least 20
-    const minD = Math.max(this.data.minDist, 20, cam.near + 0.5);
+    const minD = Math.max(this.data.minDist, cam.near + 0.5);
     const maxD = Math.min(this.data.maxDist, cam.far * 0.9);
 
     let placed = false;
-    for (let i = 0; i < 20 && !placed; i++) { // Increased attempts from 12 to 20
+    for (let i = 0; i < 12 && !placed; i++) {
       // random direction
       const dir = this._randUnit(this._tmpV3);
       if (camFwd.dot(dir) > cosLimit) { i--; continue; } // still in FOV, retry
@@ -542,17 +552,6 @@ AFRAME.registerComponent('offscreen-respawn', {
       const pos = dir.multiplyScalar(dist).add(camPos);
 
       if (this.data.lockY) pos.y = THREE.MathUtils.clamp(pos.y, this.data.yMin, this.data.yMax);
-
-      // Verify the distance is safe before placing
-      const finalDistance = Math.sqrt(
-        Math.pow(pos.x - camPos.x, 2) + 
-        Math.pow(pos.z - camPos.z, 2)
-      );
-      
-      if (finalDistance < 20) { // Force minimum 20 unit distance
-        i--; // Don't count this attempt
-        continue;
-      }
 
       // apply position + rotation
       this.el.object3D.position.copy(pos);
@@ -573,28 +572,10 @@ AFRAME.registerComponent('offscreen-respawn', {
     }
 
     if (!placed) {
-      // Enhanced fallback: place at a safe distance in multiple possible directions
-      const safeDistance = Math.max(30, maxD); // Ensure at least 30 units away
-      const fallbackDirections = [
-        {x: 1, z: 0},   // Right
-        {x: -1, z: 0},  // Left  
-        {x: 0, z: 1},   // Forward
-        {x: 0, z: -1},  // Back
-        {x: 1, z: 1},   // Diagonal
-        {x: -1, z: -1}, // Diagonal
-        {x: 1, z: -1},  // Diagonal
-        {x: -1, z: 1}   // Diagonal
-      ];
-      
-      const randomDir = fallbackDirections[Math.floor(Math.random() * fallbackDirections.length)];
-      const pos = this._tmpV3.set(
-        camPos.x + randomDir.x * safeDistance,
-        this.data.lockY ? THREE.MathUtils.clamp(camPos.y, this.data.yMin, this.data.yMax) : camPos.y,
-        camPos.z + randomDir.z * safeDistance
-      );
-      
+      // guaranteed off-screen: directly behind camera at maxD
+      const pos = this._tmpV3.copy(camPos).addScaledVector(camFwd, -maxD);
+      if (this.data.lockY) pos.y = THREE.MathUtils.clamp(pos.y, this.data.yMin, this.data.yMax);
       this.el.object3D.position.copy(pos);
-      console.log(`Fallback positioning: placed at distance ${safeDistance} from camera`);
     }
 
     this.el.emit('respawned-offscreen');

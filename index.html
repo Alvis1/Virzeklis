@@ -13,7 +13,7 @@
         position="0 10 0">
       </a-camera>
 
-      <a-light type="point" intensity="50.0" position="0 10 0"></a-light>
+      <a-light type="point" intensity="50.0" position="0 10 0" light="type: point; distance: 25.97"></a-light>
 
       <!-- Tessellated terrain with displacement shader (optimized for Pi) -->
       <a-entity 
@@ -21,10 +21,9 @@
         position="0 0 0">
       </a-entity>
       
-      <!-- Dynamic compositions with conservative culling -->
-      <a-entity 
-        culling-compositions="count: 12; spread: 80; minRadius: 15; maxRadius: 60; minHeight: 3; maxHeight: 12; cullingDistance: 50; spawnDistance: 30; maxCompositions: 18; checkInterval: 2000">
-      </a-entity>
+      <!-- Dynamic compositions -->
+      <a-entity random-compositions="minRadius: 20; maxRadius: 50"></a-entity>
+
       
     
       <!-- Lighting -->
