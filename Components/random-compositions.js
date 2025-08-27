@@ -27,7 +27,7 @@ AFRAME.registerSystem('light-frustum', {
 
 AFRAME.registerComponent('random-compositions', {
   schema: {
-    count: {type: 'number', default: 20},
+    count: {type: 'number', default: 10},
     spread: {type: 'number', default: 50},
     minRadius: {type: 'number', default: 20},
     maxRadius: {type: 'number', default: 50},
@@ -53,12 +53,17 @@ AFRAME.registerComponent('random-compositions', {
     this.lastSafetyCheck = 0;
     this.safetyCheckInterval = 5000; // Check every 5 seconds for stuck compositions
     
+    // Mouse scroll rotation variables
+    this.pamatObjects = []; // Track all Pamats objects for rotation
+    this.scrollRotationAmount = 5; // Degrees to rotate per scroll
+    
     // Wait for scene to be ready
     this.el.sceneEl.addEventListener('loaded', () => {
       this.frustumSystem = this.el.sceneEl.systems['light-frustum'];
       this.createCompositions();
       this.registerWithFrustumSystem();
       this.startSafetySystem();
+      this.setupScrollRotation();
     });
   },
 
@@ -143,161 +148,133 @@ AFRAME.registerComponent('random-compositions', {
   },
 
   createTowerComposition: function(parentEntity, colors) {
-    // Base of the tower - wide rectangular base with more variation
-    const base = document.createElement('a-entity');
-    const baseWidth = 2 + Math.random() * 3; // More variation: 2-5
-    const baseHeight = 0.5 + Math.random() * 1.5; // More variation: 0.5-2
-    const baseDepth = 2 + Math.random() * 3; // More variation: 2-5
+    // Define available assets
+    const pamatAssets = ['pamats-01', 'pamats-02', 'pamats-03', 'pamats-04'];
+    const vidusAssets = ['vidus-01', 'vidus-02', 'vidus-03'];
     
-    base.setAttribute('geometry', {
-      primitive: 'box',
-      width: baseWidth,
-      height: baseHeight,
-      depth: baseDepth
-    });
-    base.setAttribute('position', `0 ${baseHeight/2} 0`);
-    base.setAttribute('material', {
-      color: colors[Math.floor(Math.random() * colors.length)],
-      roughness: 0.7 + Math.random() * 0.3, // Random roughness
-      flatShading: true
-    });
-    parentEntity.appendChild(base);
-
-    // Main tower body - more variation in tapering
-    const towerBody = document.createElement('a-entity');
-    const towerHeight = 3 + Math.random() * 6; // More variation: 3-9
-    const towerWidth = baseWidth * (0.4 + Math.random() * 0.5); // More dramatic tapering
-    const towerDepth = baseDepth * (0.4 + Math.random() * 0.5);
+    // Scale factor for all objects (much smaller to match original size)
+    const globalScale = 0.5;
     
-    towerBody.setAttribute('geometry', {
-      primitive: 'box',
-      width: towerWidth,
-      height: towerHeight,
-      depth: towerDepth
-    });
-    towerBody.setAttribute('position', `0 ${baseHeight + towerHeight/2} 0`);
-    towerBody.setAttribute('material', {
-      color: colors[Math.floor(Math.random() * colors.length)],
-      roughness: 0.6 + Math.random() * 0.4,
-      flatShading: true
-    });
-    parentEntity.appendChild(towerBody);
-
-    // Pyramidal top with more variety
-    const pyramid = document.createElement('a-entity');
-    const pyramidHeight = 1 + Math.random() * 3; // More height variation
-    const pyramidRadiusX = Math.max(towerWidth, towerDepth) / 2;
-    const pyramidRadiusZ = Math.max(towerWidth, towerDepth) / 2;
-    const pyramidRadius = Math.max(pyramidRadiusX, pyramidRadiusZ) * (0.8 + Math.random() * 0.4); // Size variation
+    // Array to track Pamats positions for collision detection
+    const pamatPositions = [];
+    const minDistance = 15; // Minimum distance between Pamats objects
     
-    pyramid.setAttribute('geometry', {
-      primitive: 'cone',
-      radiusBottom: pyramidRadius,
-      radiusTop: 0,
-      height: pyramidHeight,
-      segmentsRadial: 4 + Math.floor(Math.random() * 4) // 4-7 segments for variety
-    });
-    pyramid.setAttribute('position', `0 ${baseHeight + towerHeight + pyramidHeight/2} 0`);
-    pyramid.setAttribute('rotation', `0 ${Math.random() * 90} 0`); // Random rotation
-    pyramid.setAttribute('material', {
-      color: colors[Math.floor(Math.random() * colors.length)],
-      roughness: 0.5 + Math.random() * 0.5,
-      flatShading: true
-    });
-    parentEntity.appendChild(pyramid);
-
-    // Add 0-4 protruding elements with more variety
-    const numProtrusions = Math.floor(Math.random() * 5); // 0-4 protrusions
+    // Create exactly 1 Pamats base object per composition
+    const numPamatsBase = 1; // Only one Pamats per composition
     
-    for (let i = 0; i < numProtrusions; i++) {
-      const protrusion = document.createElement('a-entity');
-      const protrusionSize = 0.6 + Math.random() * 1.5; // More size variation
+    for (let baseIndex = 0; baseIndex < numPamatsBase; baseIndex++) {
+      // Create base Pamats object
+      const base = document.createElement('a-obj-model');
+      const baseAssetId = pamatAssets[Math.floor(Math.random() * pamatAssets.length)];
+      base.setAttribute('src', `#${baseAssetId}`);
       
-      // Random position on the tower body
-      const protrusionY = baseHeight + Math.random() * towerHeight * 0.9;
-      const side = Math.floor(Math.random() * 4); // Which side of the tower
-      let protrusionX = 0, protrusionZ = 0;
+      // Pamats scaling rules: X and Z from 3-5, Y from 5-15
+      const baseScaleX = 3 + Math.random() * 2; // 3 to 5
+      const baseScaleY = 5 + Math.random() * 10; // 5 to 15
+      const baseScaleZ = 3 + Math.random() * 2; // 3 to 5
+      base.setAttribute('scale', `${baseScaleX} ${baseScaleY} ${baseScaleZ}`);
       
-      switch(side) {
-        case 0: // Front
-          protrusionZ = towerDepth/2 + protrusionSize/2;
-          protrusionX = (Math.random() - 0.5) * towerWidth * 0.8;
-          break;
-        case 1: // Back
-          protrusionZ = -(towerDepth/2 + protrusionSize/2);
-          protrusionX = (Math.random() - 0.5) * towerWidth * 0.8;
-          break;
-        case 2: // Left
-          protrusionX = -(towerWidth/2 + protrusionSize/2);
-          protrusionZ = (Math.random() - 0.5) * towerDepth * 0.8;
-          break;
-        case 3: // Right
-          protrusionX = towerWidth/2 + protrusionSize/2;
-          protrusionZ = (Math.random() - 0.5) * towerDepth * 0.8;
-          break;
-      }
+      // Pamats rotation rules: random rotation on all axes, -15 to 15 degrees each
+      const baseRotX = (Math.random() - 0.5) * 30; // -15 to 15 degrees
+      const baseRotY = (Math.random() - 0.5) * 30; // -15 to 15 degrees
+      const baseRotZ = (Math.random() - 0.5) * 30; // -15 to 15 degrees
+      base.setAttribute('rotation', `${baseRotX} ${baseRotY} ${baseRotZ}`);
       
-      // Random protrusion shape
-      const protrusionType = Math.random() < 0.7 ? 'box' : (Math.random() < 0.5 ? 'cylinder' : 'sphere');
-      let protrusionGeometry = {};
+      // Find a position that doesn't overlap with existing Pamats
+      let baseX, baseZ, validPosition = false;
+      let attempts = 0;
+      const maxAttempts = 50;
       
-      switch(protrusionType) {
-        case 'box':
-          protrusionGeometry = {
-            primitive: 'box',
-            width: protrusionSize,
-            height: protrusionSize * (0.7 + Math.random() * 0.6),
-            depth: protrusionSize
-          };
-          break;
-        case 'cylinder':
-          protrusionGeometry = {
-            primitive: 'cylinder',
-            radius: protrusionSize * 0.5,
-            height: protrusionSize * (0.8 + Math.random() * 0.7)
-          };
-          break;
-        case 'sphere':
-          protrusionGeometry = {
-            primitive: 'sphere',
-            radius: protrusionSize * 0.6
-          };
-          break;
-      }
+      do {
+        // Generate random position
+        baseX = (Math.random() - 0.5) * 20 * globalScale;
+        baseZ = (Math.random() - 0.5) * 20 * globalScale;
+        
+        // Check distance from all existing Pamats
+        validPosition = true;
+        for (let i = 0; i < pamatPositions.length; i++) {
+          const existingPos = pamatPositions[i];
+          const distance = Math.sqrt(
+            Math.pow(baseX - existingPos.x, 2) + 
+            Math.pow(baseZ - existingPos.z, 2)
+          );
+          
+          if (distance < minDistance) {
+            validPosition = false;
+            break;
+          }
+        }
+        
+        attempts++;
+        if (attempts >= maxAttempts) {
+          // If we can't find a valid position after many attempts, use the last generated position
+          validPosition = true;
+        }
+        
+      } while (!validPosition);
       
-      protrusion.setAttribute('geometry', protrusionGeometry);
-      protrusion.setAttribute('position', `${protrusionX} ${protrusionY} ${protrusionZ}`);
-      protrusion.setAttribute('material', {
+      // Store this position for future collision checks
+      pamatPositions.push({x: baseX, z: baseZ});
+      
+      base.setAttribute('position', `${baseX} 0 ${baseZ}`);
+      base.setAttribute('material', {
         color: colors[Math.floor(Math.random() * colors.length)],
-        roughness: 0.8 + Math.random() * 0.2,
-        flatShading: true
+        roughness: 0.7 + Math.random() * 0.3,
+        flatShading: true,
+        emissive: '#ff0000',
+        emissiveIntensity: 0.2
       });
+      parentEntity.appendChild(base);
       
-      // Sometimes add pyramid tops to protrusions
-      if (Math.random() < 0.6 && protrusionType === 'box') {
-        const protrusionPyramid = document.createElement('a-entity');
-        const protrusionPyramidHeight = protrusionSize * (0.4 + Math.random() * 0.4);
-        const protrusionPyramidRadius = protrusionSize / 2;
+      // Track this Pamats object for scroll rotation
+      this.pamatObjects.push({
+        element: base,
+        randomAxis: Math.floor(Math.random() * 3), // 0=X, 1=Y, 2=Z
+        rotationDirection: 1 // 1 for positive, -1 for negative
+      });
+
+      // Stack 1-3 Vidus objects on this Pamats base as children
+      const numVidusOnThisBase = 1 + Math.floor(Math.random() * 3); // 1-3 Vidus objects per base
+      
+      // Estimate the height of the base object (assuming standard OBJ proportions)
+      // We'll use the Y scale as a rough approximation of height
+      const estimatedBaseHeight = baseScaleY * 0.1; // Rough estimate, adjust if needed
+      
+      for (let vidusIndex = 0; vidusIndex < numVidusOnThisBase; vidusIndex++) {
+        const vidusElement = document.createElement('a-obj-model');
+        const vidusAssetId = vidusAssets[Math.floor(Math.random() * vidusAssets.length)];
+        vidusElement.setAttribute('src', `#${vidusAssetId}`);
         
-        protrusionPyramid.setAttribute('geometry', {
-          primitive: 'cone',
-          radiusBottom: protrusionPyramidRadius,
-          radiusTop: 0,
-          height: protrusionPyramidHeight,
-          segmentsRadial: 4
-        });
-        protrusionPyramid.setAttribute('position', `${protrusionX} ${protrusionY + protrusionSize/2 + protrusionPyramidHeight/2} ${protrusionZ}`);
-        protrusionPyramid.setAttribute('rotation', `0 ${Math.random() * 90} 0`);
-        protrusionPyramid.setAttribute('material', {
+        // Vidus scaling rules: independent random scale from 1 to 1.5
+        const vidusScaleX = 1 + Math.random() * 0.5; // 1.0 to 1.5
+        const vidusScaleZ = 1 + Math.random() * 0.5; // 1.0 to 1.5
+        const vidusScaleY = 1 + Math.random() * 0.5; // 1.0 to 1.5
+        vidusElement.setAttribute('scale', `${vidusScaleX} ${vidusScaleY} ${vidusScaleZ}`);
+        
+        // Vidus objects: no rotation - always upright
+        vidusElement.setAttribute('rotation', '0 0 0');
+        
+        // Position Vidus objects relative to the base (as children, positions are relative)
+        // Stack them vertically but not higher than the base object
+        const stackHeight = (vidusIndex / numVidusOnThisBase) * estimatedBaseHeight;
+        
+        // Center Vidus objects on X and Z axes (no random offset)
+        const vidusX = 0; // Centered on X
+        const vidusZ = 0; // Centered on Z
+        const vidusY = stackHeight;
+        
+        vidusElement.setAttribute('position', `${vidusX} ${vidusY} ${vidusZ}`);
+        vidusElement.setAttribute('material', {
           color: colors[Math.floor(Math.random() * colors.length)],
-          roughness: 0.5 + Math.random() * 0.5,
-          flatShading: true
+          roughness: 0.6 + Math.random() * 0.4,
+          flatShading: true,
+          emissive: '#ff0000',
+          emissiveIntensity: 0.2
         });
         
-        parentEntity.appendChild(protrusionPyramid);
+        // Add Vidus as child of the Pamats base
+        base.appendChild(vidusElement);
       }
-      
-      parentEntity.appendChild(protrusion);
     }
   },
 
@@ -369,10 +346,73 @@ AFRAME.registerComponent('random-compositions', {
     console.log('Forced repositioning completed for composition');
   },
 
+  setupScrollRotation: function() {
+    // Add mouse wheel event listener for rotating Pamats objects
+    const handleScroll = (event) => {
+      event.preventDefault();
+      
+      // Determine scroll direction (positive = scroll up, negative = scroll down)
+      const scrollDirection = event.deltaY > 0 ? 1 : -1;
+      const rotationAmount = this.scrollRotationAmount * scrollDirection;
+      
+      // Rotate each Pamats object on its assigned random axis
+      this.pamatObjects.forEach(pamatObj => {
+        const currentRotation = pamatObj.element.getAttribute('rotation') || {x: 0, y: 0, z: 0};
+        
+        // Calculate the actual rotation amount considering direction
+        const actualRotationAmount = rotationAmount * pamatObj.rotationDirection;
+        
+        // Apply rotation to the random axis with direction reversal at limits
+        switch(pamatObj.randomAxis) {
+          case 0: // X-axis
+            let newRotX = currentRotation.x + actualRotationAmount;
+            if (newRotX >= 45 || newRotX <= -45) {
+              pamatObj.rotationDirection *= -1; // Reverse direction
+              newRotX = Math.max(-45, Math.min(45, newRotX)); // Clamp to limits
+            }
+            currentRotation.x = newRotX;
+            break;
+          case 1: // Y-axis
+            let newRotY = currentRotation.y + actualRotationAmount;
+            if (newRotY >= 45 || newRotY <= -45) {
+              pamatObj.rotationDirection *= -1; // Reverse direction
+              newRotY = Math.max(-45, Math.min(45, newRotY)); // Clamp to limits
+            }
+            currentRotation.y = newRotY;
+            break;
+          case 2: // Z-axis
+            let newRotZ = currentRotation.z + actualRotationAmount;
+            if (newRotZ >= 45 || newRotZ <= -45) {
+              pamatObj.rotationDirection *= -1; // Reverse direction
+              newRotZ = Math.max(-45, Math.min(45, newRotZ)); // Clamp to limits
+            }
+            currentRotation.z = newRotZ;
+            break;
+        }
+        
+        pamatObj.element.setAttribute('rotation', currentRotation);
+      });
+    };
+    
+    // Add event listener to the scene canvas
+    const canvas = this.el.sceneEl.canvas;
+    if (canvas) {
+      canvas.addEventListener('wheel', handleScroll, { passive: false });
+    }
+    
+    console.log('Scroll rotation setup complete for', this.pamatObjects.length, 'Pamats objects');
+  },
+
   remove: function() {
     // Clean up when component is removed
     if (this.frustumSystem) {
       this.frustumSystem.unregister(this);
+    }
+    
+    // Remove scroll event listener
+    const canvas = this.el.sceneEl.canvas;
+    if (canvas) {
+      canvas.removeEventListener('wheel', this.handleScroll);
     }
   }
 });

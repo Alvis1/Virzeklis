@@ -7,13 +7,24 @@
   </head>
   <body>
     <a-scene inspector="url: ./aframeeditor.min.js">
+      <!-- Assets -->
+      <a-assets>
+        <a-asset-item id="pamats-01" src="./Assets/Pamats_01.obj"></a-asset-item>
+        <a-asset-item id="pamats-02" src="./Assets/Pamats_02.obj"></a-asset-item>
+        <a-asset-item id="pamats-03" src="./Assets/Pamats_03.obj"></a-asset-item>
+        <a-asset-item id="pamats-04" src="./Assets/Pamats_04.obj"></a-asset-item>
+        <a-asset-item id="vidus-01" src="./Assets/Vidus_01.obj"></a-asset-item>
+        <a-asset-item id="vidus-02" src="./Assets/Vidus_02.obj"></a-asset-item>
+        <a-asset-item id="vidus-03" src="./Assets/Vidus_03.obj"></a-asset-item>
+      </a-assets>
+
       <!-- Fixed camera with mouse control and focused FOV -->
       <a-camera 
         fixed-camera="height: 10; fov: 30; maxRotation: 15; terrainSelector: [terrain]"
         position="0 10 0">
       </a-camera>
 
-      <a-light type="point" intensity="50.0" position="0 10 0" light="type: point; distance: 25.97"></a-light>
+      <a-light type="point" intensity="24.0" position="0 10 0" light="type: point; distance: 45"></a-light>
 
       <!-- Tessellated terrain with displacement shader (optimized for Pi) -->
       <a-entity 
@@ -27,7 +38,7 @@
       
     
       <!-- Lighting -->
-      <a-light type="ambient" color="#404040" intensity="1.0"></a-light>
+      <a-light type="ambient" color="#ff0000" intensity="0.0"></a-light>
 
       
       <!-- Sky -->
