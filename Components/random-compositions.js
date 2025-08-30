@@ -76,6 +76,9 @@ AFRAME.registerComponent('random-compositions', {
       // Create main entity container
       const entity = document.createElement('a-entity');
       
+      // Give each composition a unique ID
+      entity.id = `composition-${i}-${Date.now()}`;
+      
       // Generate initial position with minimum and maximum radius constraints
       this.randomizeCompositionPosition(entity);
       
@@ -97,6 +100,15 @@ AFRAME.registerComponent('random-compositions', {
       // Listen for respawn event to regenerate composition
       entity.addEventListener('respawned-offscreen', () => {
         this.regenerateComposition(entity, grayColors);
+        
+        // Reset hit status when composition respawns
+        const ballShooter = document.querySelector('[ball-shooter]');
+        if (ballShooter && ballShooter.components['ball-shooter']) {
+          const shooterComponent = ballShooter.components['ball-shooter'];
+          if (shooterComponent.hitCompositions && shooterComponent.hitCompositions.has(entity.id)) {
+            shooterComponent.hitCompositions.delete(entity.id);
+          }
+        }
       });
       
       // Add the composition to the scene and track it
@@ -224,6 +236,13 @@ AFRAME.registerComponent('random-compositions', {
         emissive: '#ff0000',
         emissiveIntensity: 0.2
       });
+      
+      // Add OBB collider to the base for collision detection
+      base.setAttribute('obb-collider', {
+        centerModel: true
+      });
+      base.setAttribute('class', 'composition-object');
+      
       parentEntity.appendChild(base);
       
       // Track this Pamats object for scroll rotation
@@ -271,6 +290,12 @@ AFRAME.registerComponent('random-compositions', {
           emissive: '#ff0000',
           emissiveIntensity: 0.2
         });
+        
+        // Add OBB collider to the Vidus object for collision detection
+        vidusElement.setAttribute('obb-collider', {
+          centerModel: true
+        });
+        vidusElement.setAttribute('class', 'composition-object');
         
         // Add Vidus as child of the Pamats base
         base.appendChild(vidusElement);

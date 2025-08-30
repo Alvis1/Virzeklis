@@ -87,23 +87,14 @@ AFRAME.registerComponent('terrain', {
         // Pre-defined color constants
         const vec3 lowColor = vec3(1.0, 1.0, 1.0);   // Dark green for low areas
         const vec3 highColor = vec3(0.0, 0.0, 0.0);  // Brown for high areas
-        const vec3 wireframeColor = vec3(1.2);        // White wireframe
         const float invRange = 0.05; // 1.0 / 20.0 - pre-calculated
         
         // Optimized height normalization
         float normalizedHeight = clamp((vDisplacement + 10.0) * invRange, 0.0, 1.0);
         vec3 color = mix(lowColor, highColor, normalizedHeight);
         
-        // Optimized wireframe calculation
-        const vec2 segments = vec2(512.0); // Use single value for both axes
-        vec2 gridCoord = vUv * segments + 0.5; // Offset grid by half
-        vec2 grid = abs(fract(gridCoord) - 0.5);
-        vec2 gridWidth = fwidth(gridCoord);
-        vec2 wireframe = smoothstep(gridWidth * 0.5, gridWidth * 1.5, grid);
-        float wireframeFactor = (1.0 - min(wireframe.x, wireframe.y)) * 0.8;
-        
-        // Single mix operation for final color
-        gl_FragColor = vec4(mix(color, wireframeColor, wireframeFactor), 1.0);
+        // Grid removed - use base terrain color only
+        gl_FragColor = vec4(color, 1.0);
       }
     `;
 

@@ -4,6 +4,7 @@
     <script src="./Components/terrain-component.js"></script>
     <script src="./Components/fixed-camera.js"></script>
     <script src="./Components/random-compositions.js"></script>
+    <script src="./Components/ball-shooter.js"></script>
   </head>
   <body>
     <a-scene inspector="url: ./aframeeditor.min.js">
@@ -22,6 +23,8 @@
       <a-camera 
         fixed-camera="height: 10; fov: 30; maxRotation: 15; terrainSelector: [terrain]"
         position="0 10 0">
+        <!-- Ball shooter as child of camera to inherit rotation -->
+        <a-entity ball-shooter></a-entity>
       </a-camera>
 
       <a-light type="point" intensity="24.0" position="0 10 0" light="type: point; distance: 45"></a-light>
