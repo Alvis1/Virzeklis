@@ -120,7 +120,7 @@ AFRAME.registerComponent('terrain', {
     // Listen for mouse wheel to pan noise
     window.addEventListener('wheel', (e) => {
       // Always pan in negative X direction regardless of scroll direction
-  this.noiseOffset.x -= Math.abs((e.deltaX * 0.1 + e.deltaY * 0.1));
+  this.noiseOffset.x -= Math.abs((e.deltaX * 0.05 + e.deltaY * 0.05)); // 5x faster than previous
       this.noiseOffset.y = 0;
       if (this.material) {
         this.material.uniforms.noiseOffset.value.set(this.noiseOffset.x, this.noiseOffset.y);

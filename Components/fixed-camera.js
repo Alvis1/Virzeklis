@@ -18,7 +18,7 @@ AFRAME.registerComponent('fixed-camera', {
     this.displacementMin = 1; // Min displacement when going down
     this.displacementDirection = 1; // 1 for increasing, -1 for decreasing
     this.isScrollingUp = true; // Track scroll direction
-    this.displacementSpeed = 0.3; // Speed of displacement change
+    this.displacementSpeed = 0.03; // Speed of displacement change (10x slower)
     
     // Set camera position and FOV
     this.el.setAttribute('position', `0 ${this.data.height} 0`);
@@ -43,7 +43,7 @@ AFRAME.registerComponent('fixed-camera', {
     event.preventDefault();
     
     // Add Y-axis rotation based on scroll direction
-    this.targetScrollRotation += event.deltaY * 0.1;
+    this.targetScrollRotation += event.deltaY * 0.01; // 10x slower
     
     // Determine scroll direction and update displacement cycling
     if (event.deltaY < 0) {
