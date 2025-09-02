@@ -167,9 +167,9 @@ AFRAME.registerComponent('ball-shooter', {
     // Ball properties
     ball.setAttribute('radius', '0.2');
     ball.setAttribute('material', {
-      color: '#0066ff',
-      emissive: '#0044aa',
-      emissiveIntensity: 0.5
+      color: '#FFD700',
+      emissive: '#FFA500',
+      emissiveIntensity: 0.3
     });
     ball.setAttribute('position', startPosition);
     
@@ -299,7 +299,7 @@ AFRAME.registerComponent('ball-shooter', {
       if (!this.hitCompositions.has(compositionId)) {
         // This is a new hit - count it and change appearance
         this.hitCompositions.add(compositionId);
-        this.makeCompositionEmitBlue(composition);
+        this.makeCompositionEmitGold(composition);
         
         // Increment hit counter only for new hits
         this.hitCount++;
@@ -342,16 +342,16 @@ AFRAME.registerComponent('ball-shooter', {
     return element; // Fallback to the element itself
   },
 
-  makeCompositionEmitBlue: function (composition) {
+  makeCompositionEmitGold: function (composition) {
     // Find all mesh objects within this composition (both Pamats and Vidus)
     const meshElements = composition.querySelectorAll('a-obj-model');
     
     meshElements.forEach(meshElement => {
-      // Change material to emit blue light like the ball
+      // Change material to emit gold light like the ball
       meshElement.setAttribute('material', {
-        color: '#0066ff',
-        emissive: '#0044aa',
-        emissiveIntensity: 0.8,
+        color: '#FFD700',
+        emissive: '#FFA500',
+        emissiveIntensity: 0.6,
         roughness: 0.3,
         flatShading: true
       });
@@ -360,7 +360,7 @@ AFRAME.registerComponent('ball-shooter', {
     // Add a glowing effect with a light component
     const glowLight = document.createElement('a-light');
     glowLight.setAttribute('type', 'point');
-    glowLight.setAttribute('color', '#0066ff');
+    glowLight.setAttribute('color', '#FFD700');
     glowLight.setAttribute('intensity', '2');
     glowLight.setAttribute('distance', '10');
     glowLight.setAttribute('position', '0 2 0');

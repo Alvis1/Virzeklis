@@ -232,9 +232,7 @@ AFRAME.registerComponent('random-compositions', {
       base.setAttribute('material', {
         color: colors[Math.floor(Math.random() * colors.length)],
         roughness: 0.7 + Math.random() * 0.3,
-        flatShading: true,
-        emissive: '#ff0000',
-        emissiveIntensity: 0.2
+        flatShading: true
       });
       
       // Add OBB collider to the base for collision detection
@@ -286,9 +284,7 @@ AFRAME.registerComponent('random-compositions', {
         vidusElement.setAttribute('material', {
           color: colors[Math.floor(Math.random() * colors.length)],
           roughness: 0.6 + Math.random() * 0.4,
-          flatShading: true,
-          emissive: '#ff0000',
-          emissiveIntensity: 0.2
+          flatShading: true
         });
         
         // Add OBB collider to the Vidus object for collision detection
