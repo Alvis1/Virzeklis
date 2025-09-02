@@ -55,7 +55,7 @@ AFRAME.registerComponent('random-compositions', {
     
     // Mouse scroll rotation variables
     this.pamatObjects = []; // Track all Pamats objects for rotation
-    this.scrollRotationAmount = 5; // Degrees to rotate per scroll
+    this.scrollRotationAmount = 1; // Degrees to rotate per scroll (divided by 5 for slower rotation)
     
     // Wait for scene to be ready
     this.el.sceneEl.addEventListener('loaded', () => {

@@ -126,22 +126,28 @@ AFRAME.registerComponent('ball-shooter', {
   },
 
   shootBall: function () {
-    // Get camera (parent element)
-    const camera = this.el.parentEl;
-    const cameraPosition = camera.getAttribute('position');
+    // Dispatch ball shoot event for sound effects
+    document.dispatchEvent(new CustomEvent('ball-shoot'));
     
-    // Get the camera's world transform to calculate proper forward direction
-    const cameraObject3D = camera.object3D;
-    
-    // Calculate starting position (3 units below camera)
-    const startPosition = {
-      x: cameraPosition.x,
-      y: cameraPosition.y - 3,
-      z: cameraPosition.z
-    };
-    
-    // Create the ball with proper camera direction
-    this.createBall(startPosition, cameraObject3D);
+    // Delay ball launch by half a second after the sound
+    setTimeout(() => {
+      // Get camera (parent element)
+      const camera = this.el.parentEl;
+      const cameraPosition = camera.getAttribute('position');
+      
+      // Get the camera's world transform to calculate proper forward direction
+      const cameraObject3D = camera.object3D;
+      
+      // Calculate starting position (3 units below camera)
+      const startPosition = {
+        x: cameraPosition.x,
+        y: cameraPosition.y - 3,
+        z: cameraPosition.z
+      };
+      
+      // Create the ball with proper camera direction
+      this.createBall(startPosition, cameraObject3D);
+    }, 500); // 500ms = half a second
   },
 
   remove: function () {
@@ -276,6 +282,9 @@ AFRAME.registerComponent('ball-shooter', {
   },
 
   handleBallCollision: function (ball, collidedWithElement) {
+    // Dispatch ball hit event for sound effects
+    document.dispatchEvent(new CustomEvent('ball-hit'));
+    
     // Stop the ball animation
     if (ball.stopAnimation) {
       ball.stopAnimation();

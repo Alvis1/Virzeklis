@@ -5,9 +5,11 @@
     <script src="./Components/fixed-camera.js"></script>
     <script src="./Components/random-compositions.js"></script>
     <script src="./Components/ball-shooter.js"></script>
+    <script src="./Components/sound-effects.js"></script>
   </head>
   <body>
-    <a-scene inspector="url: ./aframeeditor.min.js" xr-mode-ui="enabled: false">
+    <a-scene inspector="url: ./aframeeditor.min.js" xr-mode-ui="enabled: false" sound-effects 
+             renderer="antialias: true; maxCanvasWidth: 960; maxCanvasHeight: 540">
       <!-- Assets -->
       <a-assets>
         <a-asset-item id="pamats-01" src="Assets/Pamats_01.obj"></a-asset-item>
@@ -17,6 +19,11 @@
         <a-asset-item id="vidus-01" src="Assets/Vidus_01.obj"></a-asset-item>
         <a-asset-item id="vidus-02" src="Assets/Vidus_02.obj"></a-asset-item> 
         <a-asset-item id="vidus-03" src="Assets/Vidus_03.obj"></a-asset-item>
+        
+        <!-- Sound Assets -->
+        <audio id="scroll-sound" src="Assets/AkmensBerze.mp3" preload="auto"></audio>
+        <audio id="shoot-sound" src="Assets/Shauj01.mp3" preload="auto"></audio>
+        <audio id="hit-sound" src="Assets/trapa01.mp3" preload="auto"></audio>
       </a-assets>
 
       <!-- Fixed camera with mouse control and focused FOV -->

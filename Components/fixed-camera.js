@@ -11,6 +11,8 @@ AFRAME.registerComponent('fixed-camera', {
     this.scrollRotation = 0;
     this.targetScrollRotation = 0;
     this.baseNoiseScale = 0.05;
+    this.rotationStopped = false;
+    this.rotationStopTimeout = null; // Add timeout for delayed stop
     
     // New displacement system
     this.displacementValue = 10; // Current displacement value
@@ -44,6 +46,15 @@ AFRAME.registerComponent('fixed-camera', {
     
     // Add Y-axis rotation based on scroll direction
     this.targetScrollRotation += event.deltaY * 0.01; // 10x slower
+    
+    // Dispatch camera rotation event for sound effects
+    const rotationSpeed = Math.abs(event.deltaY * 0.01);
+    document.dispatchEvent(new CustomEvent('camera-rotating', {
+      detail: { 
+        speed: rotationSpeed,
+        deltaY: event.deltaY 
+      }
+    }));
     
     // Determine scroll direction and update displacement cycling
     if (event.deltaY < 0) {
@@ -110,9 +121,32 @@ AFRAME.registerComponent('fixed-camera', {
       this.el.setAttribute('position', `0 ${this.data.height} 0`);
     }
     
+    // Store previous rotation for comparison
+    const prevRotation = this.scrollRotation;
+    
     // Smooth interpolation for scroll rotation only
     const lerpFactor = 0.1;
     this.scrollRotation += (this.targetScrollRotation - this.scrollRotation) * lerpFactor;
+    
+    // Check if rotation has stopped (very small difference)
+    const rotationDiff = Math.abs(this.scrollRotation - this.targetScrollRotation);
+    if (rotationDiff < 0.001 && Math.abs(prevRotation - this.scrollRotation) < 0.001) {
+      if (!this.rotationStopped) {
+        // Start the 1-second delay timer
+        this.rotationStopTimeout = setTimeout(() => {
+          // Dispatch rotation stopped event after 1 second delay
+          document.dispatchEvent(new CustomEvent('camera-rotation-stopped'));
+          this.rotationStopped = true;
+        }, 1000); // 1 second delay
+      }
+    } else {
+      // Camera is still rotating, cancel any pending stop timeout
+      if (this.rotationStopTimeout) {
+        clearTimeout(this.rotationStopTimeout);
+        this.rotationStopTimeout = null;
+      }
+      this.rotationStopped = false;
+    }
     
     // Camera rotation - X-axis fixed at -10 degrees, Y-axis from scroll
     this.el.setAttribute('rotation', `-10 ${this.scrollRotation} 0`);
@@ -121,5 +155,10 @@ AFRAME.registerComponent('fixed-camera', {
   remove: function () {
     // Clean up event listeners
     document.removeEventListener('wheel', this.onWheel);
+    
+    // Clean up timeout
+    if (this.rotationStopTimeout) {
+      clearTimeout(this.rotationStopTimeout);
+    }
   }
 });
